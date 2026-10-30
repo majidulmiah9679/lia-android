@@ -43,7 +43,7 @@ fun PrivacyScreen() {
 
         PrivacyCard(
             title = "Hardware-Backed AES-256 GCM",
-            description = "Your Gemini API key and licenses are stored in the Android Keystore using EncryptedSharedPreferences with AES-256-SIV and AES-256-GCM encryption."
+            description = "Your Gemini API key is stored securely in the Android Keystore using EncryptedSharedPreferences with AES-256-SIV and AES-256-GCM encryption."
         )
 
         Spacer(modifier = Modifier.height(14.dp))

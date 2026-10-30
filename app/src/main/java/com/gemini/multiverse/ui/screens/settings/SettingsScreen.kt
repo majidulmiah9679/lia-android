@@ -78,9 +78,6 @@ fun SettingsScreen(
     var inputApiKey by remember(uiState.apiKey) { mutableStateOf(uiState.apiKey) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
-    var inputLicenseKey by remember(uiState.licenseKey) { mutableStateOf(uiState.licenseKey) }
-    var isLicenseVisible by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -225,100 +222,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 2. Direct Flavor: Access Key Licensing Card (Part 13 Integration)
-        if (BuildConfig.ENABLE_LICENSING) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, IndigoBorder, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = IndigoSurface)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = null,
-                                tint = CyanBioluminescent,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Direct Access Licensing",
-                                style = Typography.titleLarge,
-                                color = TextSnow
-                            )
-                        }
-
-                        val statusColor = if (uiState.isLicenseValid) EmeraldOnline else RoseError
-                        val statusText = if (uiState.isLicenseValid) "Verified" else "Locked"
-                        Text(
-                            text = statusText,
-                            color = statusColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "Enter your direct-tier license key (Format: LIA-XXXX-XXXX-XXXX) to unlock the Visual Agent & Direct Tools.",
-                        style = Typography.bodyMedium,
-                        color = TextSubtle
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = inputLicenseKey,
-                        onValueChange = { inputLicenseKey = it },
-                        label = { Text("LIA-XXXX-XXXX-XXXX", color = TextDim) },
-                        visualTransformation = if (isLicenseVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { isLicenseVisible = !isLicenseVisible }) {
-                                Icon(
-                                    imageVector = if (isLicenseVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Toggle license visibility",
-                                    tint = TextSubtle
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextSnow,
-                            unfocusedTextColor = TextSnow,
-                            focusedBorderColor = CyanBioluminescent,
-                            unfocusedBorderColor = IndigoBorder,
-                            focusedLabelColor = CyanBioluminescent
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Button(
-                        onClick = { viewModel.onLicenseKeySave(inputLicenseKey) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CyanBioluminescent,
-                            contentColor = IndigoVoid
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Validate License", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-        }
-
-        // 3. Language & Polyglot Setting
+        // 2. Language & Polyglot Setting
         Card(
             modifier = Modifier
                 .fillMaxWidth()

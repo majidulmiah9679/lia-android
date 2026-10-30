@@ -28,7 +28,7 @@ android {
             dimension = "distribution"
             applicationIdSuffix = ".standard"
             versionNameSuffix = "-standard"
-            buildConfigField("Boolean", "ENABLE_VISUAL_AGENT", "false")
+            buildConfigField("Boolean", "ENABLE_VISUAL_AGENT", "true")
             buildConfigField("Boolean", "ENABLE_LICENSING", "false")
         }
         create("direct") {
@@ -36,7 +36,7 @@ android {
             applicationIdSuffix = ".direct"
             versionNameSuffix = "-direct"
             buildConfigField("Boolean", "ENABLE_VISUAL_AGENT", "true")
-            buildConfigField("Boolean", "ENABLE_LICENSING", "true")
+            buildConfigField("Boolean", "ENABLE_LICENSING", "false")
         }
     }
 
