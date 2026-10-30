@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Lia</string>
+    <string name="tagline">Real-Time Voice, Multimodal Intelligence &amp; 3D Forge</string>
+    <string name="orb_title">Lia Voice</string>
+    <string name="text_chat_title">Chat</string>
+    <string name="forge_title">3D Forge</string>
+    <string name="personalities_title">Personalities</string>
+    <string name="settings_title">Settings</string>
+
+    <!-- State Strings -->
+    <string name="state_idle">Tap to talk to Lia</string>
+    <string name="state_listening">Lia sun rahi hai...</string>
+    <string name="state_thinking">Lia soch rahi hai...</string>
+    <string name="state_speaking">Lia bol rahi hai...</string>
+    <string name="state_disconnected">Disconnected</string>
+    <string name="state_connecting">Gemini Live se jud rahe hain...</string>
+</resources>
