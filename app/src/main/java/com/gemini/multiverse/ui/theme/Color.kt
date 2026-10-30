@@ -25,6 +25,20 @@ val TextSnow = Color(0xFFF8FAFC)
 val TextSubtle = Color(0xFF94A3B8)
 val TextDim = Color(0xFF64748B)
 
+// Compatibility Aliases
+val VoidBlack = IndigoVoid
+val DarkSurface = IndigoSurface
+val GlassSurface = IndigoElevated
+val GlassBorder = IndigoBorder
+val NeonCyan = CyanBioluminescent
+val NeonPurple = Color(0xFF9D00FF)
+val NeonMagenta = Color(0xFFFF007F)
+val NeonGreen = EmeraldOnline
+val NeonAmber = MarigoldPrimary
+val TextPrimary = TextSnow
+val TextSecondary = TextSubtle
+val TextMuted = TextDim
+
 // Persona Aura Glows
 val AuraNormal = Color(0xFF00F0FF)
 val AuraFriendly = Color(0xFFFF9E00)

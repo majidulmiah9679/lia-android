@@ -23,6 +23,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Voice : Screen("voice", "Voice", Icons.Default.Mic)
     data object Chat : Screen("chat", "Chat", Icons.Default.Chat)
     data object Forge : Screen("forge", "3D Forge", Icons.Default.Language)
+    data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     data object History : Screen("history", "History", Icons.Default.History)
     data object Personalities : Screen("personalities", "Personas", Icons.Default.Person)
     data object OrbStyle : Screen("orb_style", "Orb Style", Icons.Default.ColorLens)
@@ -34,6 +35,6 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 
     companion object {
         // Primary Bottom Bar Screens
-        val bottomNavItems = listOf(Home, Voice, Chat, Forge, Settings)
+        val bottomNavItems: List<Screen> = listOf(Home, Voice, Chat, Forge, Settings)
     }
 }
