@@ -51,9 +51,10 @@ class GeminiLiveClient(
 
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .pingInterval(20, TimeUnit.SECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(0, TimeUnit.SECONDS) // Disable OkHttp ping to prevent killing connection if server doesn't echo raw ping frames
         .build()
 
     private var webSocket: WebSocket? = null
@@ -97,7 +98,7 @@ class GeminiLiveClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "Gemini Live WebSocket opened. Sending setup payload.")
-                sendSetupMessage(webSocket, personality, languageMode, cleanKey)
+                sendSetupMessage(webSocket, personality, languageMode)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -128,11 +129,10 @@ class GeminiLiveClient(
     private fun sendSetupMessage(
         ws: WebSocket,
         personality: Personality,
-        languageMode: String,
-        apiKey: String
+        languageMode: String
     ) {
         val systemInstructionText = PolyglotBrain.compileSystemInstruction(personality, languageMode)
-        val liveModel = GeminiModelResolver.resolveLiveModel(apiKey)
+        val liveModel = "models/gemini-2.0-flash-exp"
         Log.i(TAG, "Configuring Gemini Live session with model: $liveModel")
 
         val setupPayload = buildJsonObject {
@@ -141,7 +141,6 @@ class GeminiLiveClient(
                 putJsonObject("generationConfig") {
                     putJsonArray("responseModalities") {
                         add("AUDIO")
-                        add("TEXT")
                     }
                     putJsonObject("speechConfig") {
                         putJsonObject("voiceConfig") {
