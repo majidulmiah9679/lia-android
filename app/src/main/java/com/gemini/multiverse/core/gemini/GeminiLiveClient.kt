@@ -97,7 +97,7 @@ class GeminiLiveClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "Gemini Live WebSocket opened. Sending setup payload.")
-                sendSetupMessage(webSocket, personality, languageMode)
+                sendSetupMessage(webSocket, personality, languageMode, cleanKey)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -128,13 +128,16 @@ class GeminiLiveClient(
     private fun sendSetupMessage(
         ws: WebSocket,
         personality: Personality,
-        languageMode: String
+        languageMode: String,
+        apiKey: String
     ) {
         val systemInstructionText = PolyglotBrain.compileSystemInstruction(personality, languageMode)
+        val liveModel = GeminiModelResolver.resolveLiveModel(apiKey)
+        Log.i(TAG, "Configuring Gemini Live session with model: $liveModel")
 
         val setupPayload = buildJsonObject {
             putJsonObject("setup") {
-                put("model", "models/gemini-2.0-flash-exp")
+                put("model", liveModel)
                 putJsonObject("generationConfig") {
                     putJsonArray("responseModalities") {
                         add("AUDIO")

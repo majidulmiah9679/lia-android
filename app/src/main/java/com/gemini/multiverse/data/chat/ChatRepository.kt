@@ -1,5 +1,6 @@
 package com.gemini.multiverse.data.chat
 
+import com.gemini.multiverse.core.gemini.GeminiModelResolver
 import com.gemini.multiverse.data.settings.SettingsRepository
 import com.gemini.multiverse.domain.chat.ChatMessage
 import com.gemini.multiverse.domain.chat.MessageSender
@@ -31,14 +32,6 @@ class ChatRepository(
 ) {
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
-
-    // List of active models in order of universal availability
-    private val candidateModels = listOf(
-        "gemini-1.5-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-2.5-flash",
-        "gemini-1.5-pro"
-    )
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
@@ -98,11 +91,18 @@ class ChatRepository(
         val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
 
         var lastError = ""
-        // Try candidate models in order until one succeeds
-        for (model in candidateModels) {
+        val candidates = GeminiModelResolver.resolveChatCandidates(apiKey)
+        if (candidates.isEmpty()) {
+            updateLiaMessage(liaPlaceholder.id, "Error: No compatible Gemini models found. Please check your API key in Settings.")
+            return@withContext
+        }
+
+        // Try discovered candidate models in order until one succeeds
+        for (candidate in candidates) {
             try {
+                val url = candidate.generateContentUrl(apiKey)
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
+                    .url(url)
                     .post(requestBody)
                     .build()
 
@@ -117,12 +117,13 @@ class ChatRepository(
                         ?.jsonObject?.get("text")?.jsonPrimitive?.content
 
                     if (!candidateText.isNullOrBlank()) {
+                        GeminiModelResolver.markChatModelSuccess(candidate)
                         updateLiaMessage(liaPlaceholder.id, candidateText)
                         return@withContext
                     }
                 } else {
-                    lastError = "Model $model returned HTTP ${response.code}: $responseBody"
-                    // If not 404, break to avoid hammering with bad key
+                    lastError = "Model ${candidate.apiVersion}/${candidate.name} returned HTTP ${response.code}: $responseBody"
+                    // If not 404, break to avoid hammering with bad key or quota issues
                     if (response.code != 404) {
                         break
                     }
