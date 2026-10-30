@@ -94,6 +94,7 @@ fun OrbScreen() {
     val inputAmp by audioEngine.inputAmplitude.collectAsState()
     val outputAmp by audioEngine.outputAmplitude.collectAsState()
     val lastTranscript by liveClient.lastRecognizedText.collectAsState()
+    val lastError by liveClient.lastErrorMessage.collectAsState()
 
     // Determine combined visual amplitude
     val visualAmplitude = if (sessionState == LiveSessionState.SPEAKING) outputAmp else inputAmp
@@ -137,7 +138,7 @@ fun OrbScreen() {
                 LiveSessionState.SPEAKING -> "Lia bol rahi hai..."
                 LiveSessionState.LISTENING -> "Lia sun rahi hai..."
                 LiveSessionState.CONNECTING -> "Connecting..."
-                LiveSessionState.ERROR -> "Check API Key"
+                LiveSessionState.ERROR -> "Connection Failed"
                 LiveSessionState.IDLE -> "Standby"
             }
 
@@ -219,9 +220,15 @@ fun OrbScreen() {
 
         // Voice Subtitle / Speech Display
         Text(
-            text = if (lastTranscript.isNotBlank()) "\"$lastTranscript\"" else "Tap Orb to speak in Hindi, Hinglish or English",
+            text = when {
+                sessionState == LiveSessionState.ERROR && lastError.isNotBlank() -> "Error: $lastError"
+                lastTranscript.isNotBlank() -> "\"$lastTranscript\""
+                sessionState == LiveSessionState.CONNECTING -> "Connecting to Gemini Live..."
+                sessionState == LiveSessionState.CONNECTED -> "Connected! Speak to Lia or listen..."
+                else -> "Tap Orb to speak in Hindi, Hinglish or English"
+            },
             style = Typography.bodyLarge,
-            color = if (lastTranscript.isNotBlank()) TextSnow else TextSubtle,
+            color = if (sessionState == LiveSessionState.ERROR) RoseError else if (lastTranscript.isNotBlank()) TextSnow else TextSubtle,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()

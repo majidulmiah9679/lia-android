@@ -32,6 +32,14 @@ class ChatRepository(
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
 
+    // List of active models in order of universal availability
+    private val candidateModels = listOf(
+        "gemini-1.5-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-2.5-flash",
+        "gemini-1.5-pro"
+    )
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
             ChatMessage(
@@ -62,7 +70,7 @@ class ChatRepository(
         _messages.value = _messages.value + userMessage + liaPlaceholder
 
         val settings = settingsRepository.settingsState.value
-        val apiKey = settings.apiKey
+        val apiKey = settings.apiKey.trim()
         if (apiKey.isBlank()) {
             updateLiaMessage(liaPlaceholder.id, "Kripya Settings mein jakar Gemini API Key enter karein.")
             return@withContext
@@ -71,47 +79,60 @@ class ChatRepository(
         val persona = PersonalitiesCatalog.getById(settings.selectedPersonalityId)
         val systemInstruction = PolyglotBrain.compileSystemInstruction(persona, settings.selectedLanguage)
 
-        try {
-            val payload = buildJsonObject {
-                putJsonObject("system_instruction") {
+        val payload = buildJsonObject {
+            putJsonObject("systemInstruction") {
+                putJsonArray("parts") {
+                    addJsonObject { put("text", systemInstruction) }
+                }
+            }
+            putJsonArray("contents") {
+                addJsonObject {
+                    put("role", "user")
                     putJsonArray("parts") {
-                        addJsonObject { put("text", systemInstruction) }
-                    }
-                }
-                putJsonArray("contents") {
-                    addJsonObject {
-                        put("role", "user")
-                        putJsonArray("parts") {
-                            addJsonObject { put("text", userText) }
-                        }
+                        addJsonObject { put("text", userText) }
                     }
                 }
             }
-
-            val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
-                .post(requestBody)
-                .build()
-
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                updateLiaMessage(liaPlaceholder.id, "Error: ${response.code} - ${response.message}")
-                return@withContext
-            }
-
-            val responseBody = response.body?.string() ?: ""
-            val parsed = json.parseToJsonElement(responseBody).jsonObject
-            val candidateText = parsed["candidates"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("content")?.jsonObject
-                ?.get("parts")?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("text")?.jsonPrimitive?.content
-                ?: "Khushi se baat karne ke liye taiyar hoon!"
-
-            updateLiaMessage(liaPlaceholder.id, candidateText)
-        } catch (e: Exception) {
-            updateLiaMessage(liaPlaceholder.id, "Connection error: ${e.message}")
         }
+
+        val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
+
+        var lastError = ""
+        // Try candidate models in order until one succeeds
+        for (model in candidateModels) {
+            try {
+                val request = Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
+                    .post(requestBody)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+
+                if (response.isSuccessful) {
+                    val parsed = json.parseToJsonElement(responseBody).jsonObject
+                    val candidateText = parsed["candidates"]?.jsonArray?.firstOrNull()
+                        ?.jsonObject?.get("content")?.jsonObject
+                        ?.get("parts")?.jsonArray?.firstOrNull()
+                        ?.jsonObject?.get("text")?.jsonPrimitive?.content
+
+                    if (!candidateText.isNullOrBlank()) {
+                        updateLiaMessage(liaPlaceholder.id, candidateText)
+                        return@withContext
+                    }
+                } else {
+                    lastError = "Model $model returned HTTP ${response.code}: $responseBody"
+                    // If not 404, break to avoid hammering with bad key
+                    if (response.code != 404) {
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                lastError = "Connection error: ${e.message}"
+            }
+        }
+
+        updateLiaMessage(liaPlaceholder.id, "Error: $lastError")
     }
 
     private fun updateLiaMessage(id: String, newText: String) {

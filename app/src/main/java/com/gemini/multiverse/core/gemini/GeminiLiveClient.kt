@@ -45,7 +45,8 @@ class GeminiLiveClient(
     companion object {
         private const val TAG = "GeminiLiveClient"
         private const val HOST = "generativelanguage.googleapis.com"
-        private const val WS_PATH = "/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
+        // v1beta is the active endpoint for BidiGenerateContent
+        private const val WS_PATH = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -56,11 +57,18 @@ class GeminiLiveClient(
         .build()
 
     private var webSocket: WebSocket? = null
+    private var activeScope: CoroutineScope? = null
+    private var activePersonality: Personality? = null
+    private var activeEchoCancellation: Boolean = true
+
     private val _sessionState = MutableStateFlow(LiveSessionState.IDLE)
     val sessionState: StateFlow<LiveSessionState> = _sessionState.asStateFlow()
 
     private val _lastRecognizedText = MutableStateFlow("")
     val lastRecognizedText: StateFlow<String> = _lastRecognizedText.asStateFlow()
+
+    private val _lastErrorMessage = MutableStateFlow("")
+    val lastErrorMessage: StateFlow<String> = _lastErrorMessage.asStateFlow()
 
     fun connect(
         scope: CoroutineScope,
@@ -69,27 +77,27 @@ class GeminiLiveClient(
         languageMode: String,
         useEchoCancellation: Boolean
     ) {
-        if (apiKey.isBlank()) {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank()) {
+            _lastErrorMessage.value = "API Key is empty. Please enter it in Settings."
             _sessionState.value = LiveSessionState.ERROR
             return
         }
 
         disconnect()
+        activeScope = scope
+        activePersonality = personality
+        activeEchoCancellation = useEchoCancellation
+        _lastErrorMessage.value = ""
         _sessionState.value = LiveSessionState.CONNECTING
 
-        val url = "wss://$HOST$WS_PATH?key=$apiKey"
+        val url = "wss://$HOST$WS_PATH?key=$cleanKey"
         val request = Request.Builder().url(url).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "Gemini Live WebSocket opened. Sending setup payload.")
                 sendSetupMessage(webSocket, personality, languageMode)
-                _sessionState.value = LiveSessionState.CONNECTED
-
-                // Start microphone capture and stream to WebSocket
-                audioEngine.startRecording(scope, useEchoCancellation) { base64Chunk ->
-                    sendRealtimeAudioChunk(base64Chunk)
-                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -99,7 +107,10 @@ class GeminiLiveClient(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "WebSocket failure: ${t.message}", t)
+                val respMsg = response?.let { "HTTP ${it.code}: ${it.message}" } ?: ""
+                val errorText = "${t.message ?: "Connection failed"} $respMsg".trim()
+                Log.e(TAG, "WebSocket failure: $errorText", t)
+                _lastErrorMessage.value = errorText
                 _sessionState.value = LiveSessionState.ERROR
                 audioEngine.stopRecording()
             }
@@ -108,6 +119,8 @@ class GeminiLiveClient(
                 Log.d(TAG, "WebSocket closed: $reason ($code)")
                 _sessionState.value = LiveSessionState.IDLE
                 audioEngine.stopRecording()
+                activeScope = null
+                activePersonality = null
             }
         })
     }
@@ -125,6 +138,7 @@ class GeminiLiveClient(
                 putJsonObject("generationConfig") {
                     putJsonArray("responseModalities") {
                         add("AUDIO")
+                        add("TEXT")
                     }
                     putJsonObject("speechConfig") {
                         putJsonObject("voiceConfig") {
@@ -158,6 +172,25 @@ class GeminiLiveClient(
         }
 
         ws.send(setupPayload.toString())
+    }
+
+    private fun sendInitialGreeting(ws: WebSocket, personality: Personality) {
+        val greetingPayload = buildJsonObject {
+            putJsonObject("clientContent") {
+                putJsonArray("turns") {
+                    addJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") {
+                            addJsonObject {
+                                put("text", "Namaste Lia! Introduce yourself warmly out loud: ${personality.sampleGreeting}")
+                            }
+                        }
+                    }
+                }
+                put("turnComplete", true)
+            }
+        }
+        ws.send(greetingPayload.toString())
     }
 
     private fun createFunctionSchema(name: String, description: String, requiredParams: List<String>): JsonObject {
@@ -198,6 +231,35 @@ class GeminiLiveClient(
     private suspend fun handleServerMessage(text: String) {
         try {
             val root = json.parseToJsonElement(text).jsonObject
+
+            // 0a. Check for setup acknowledgment from Gemini Live server
+            if (root.containsKey("setupComplete")) {
+                Log.d(TAG, "Gemini Live setupComplete received from server!")
+                _sessionState.value = LiveSessionState.CONNECTED
+                val p = activePersonality
+                val s = activeScope
+                val ws = webSocket
+                if (ws != null && p != null && s != null) {
+                    sendInitialGreeting(ws, p)
+                    audioEngine.startRecording(s, activeEchoCancellation) { base64Chunk ->
+                        sendRealtimeAudioChunk(base64Chunk)
+                    }
+                }
+                return
+            }
+
+            // 0b. Check for error payload from Gemini Live server
+            val errorObj = root["error"]?.jsonObject
+            if (errorObj != null) {
+                val code = errorObj["code"]?.jsonPrimitive?.content ?: ""
+                val msg = errorObj["message"]?.jsonPrimitive?.content ?: "Server error"
+                val fullErr = if (code.isNotBlank()) "Error $code: $msg" else "Error: $msg"
+                Log.e(TAG, "Gemini Live error: $fullErr")
+                _lastErrorMessage.value = fullErr
+                _sessionState.value = LiveSessionState.ERROR
+                audioEngine.stopRecording()
+                return
+            }
 
             // 1. Check for barge-in / user interruption
             val serverContent = root["serverContent"]?.jsonObject
@@ -279,6 +341,8 @@ class GeminiLiveClient(
         audioEngine.releasePlayback()
         webSocket?.close(1000, "User disconnected")
         webSocket = null
+        activeScope = null
+        activePersonality = null
         _sessionState.value = LiveSessionState.IDLE
     }
 }
