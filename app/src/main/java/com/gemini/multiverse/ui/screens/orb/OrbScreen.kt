@@ -29,6 +29,13 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -111,8 +118,25 @@ fun OrbScreen(navController: NavController? = null) {
     val lastTranscript by liveClient.lastRecognizedText.collectAsState()
     val lastError by liveClient.lastErrorMessage.collectAsState()
 
-    val visualAmplitude = if (sessionState == LiveSessionState.SPEAKING) outputAmp else inputAmp
     val isLive = sessionState != LiveSessionState.IDLE && sessionState != LiveSessionState.ERROR
+    val isAccessibilityActive = com.gemini.multiverse.core.agent.LiaVisualAgentService.instance != null
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val key = settingsState.apiKey
+            if (key.isNotBlank()) {
+                liveClient.connect(
+                    scope = scope,
+                    apiKey = key,
+                    personality = activePersona,
+                    languageMode = settingsState.selectedLanguage,
+                    useEchoCancellation = settingsState.isEchoCancellationEnabled
+                )
+            }
+        }
+    }
 
     DisposableEffect(Unit) {
         tiltSensorManager.startListening()
@@ -317,6 +341,32 @@ fun OrbScreen(navController: NavController? = null) {
                     fontWeight = FontWeight.Medium,
                     color = if (sessionState == LiveSessionState.ERROR) RoseError else Color.White.copy(alpha = 0.9f)
                 )
+
+                // Accessibility Prompt if not enabled
+                if (!isAccessibilityActive) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFE5A93C).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFFE5A93C).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .clickable {
+                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "⚙️ স্ক্রিন অটোমেশন চালাতে Accessibility চালু করুন (এখানে চাপ দিন)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFFFD580),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
 
@@ -374,7 +424,18 @@ fun OrbScreen(navController: NavController? = null) {
                         .clickable {
                             if (!isLive) {
                                 val key = settingsState.apiKey
-                                if (key.isNotBlank()) {
+                                if (key.isBlank()) {
+                                    navController?.navigate(Screen.Settings.route)
+                                    return@clickable
+                                }
+                                val hasMicPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.RECORD_AUDIO
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                                if (!hasMicPermission) {
+                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                } else {
                                     liveClient.connect(
                                         scope = scope,
                                         apiKey = key,
@@ -385,8 +446,6 @@ fun OrbScreen(navController: NavController? = null) {
                                     if (settingsState.isBackgroundServiceEnabled) {
                                         VoiceSessionService.start(context)
                                     }
-                                } else {
-                                    navController?.navigate(Screen.Settings.route)
                                 }
                             } else {
                                 liveClient.disconnect()

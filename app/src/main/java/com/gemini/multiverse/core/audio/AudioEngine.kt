@@ -57,55 +57,87 @@ class AudioEngine {
     ) {
         stopRecording()
 
-        val bufferSize = maxOf(
-            AudioRecord.getMinBufferSize(
-                SAMPLE_RATE_IN,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            ),
-            CHUNK_SIZE_IN * 2
-        )
+        try {
+            val bufferSize = maxOf(
+                AudioRecord.getMinBufferSize(
+                    SAMPLE_RATE_IN,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                ),
+                CHUNK_SIZE_IN * 2
+            )
 
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            SAMPLE_RATE_IN,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            bufferSize
-        )
-
-        val audioSessionId = audioRecord?.audioSessionId ?: 0
-
-        // Attach Acoustic Echo Canceler to eliminate speaker loopback
-        if (useEchoCancellation && AcousticEchoCanceler.isAvailable() && audioSessionId != 0) {
-            echoCanceler = AcousticEchoCanceler.create(audioSessionId)?.apply {
-                enabled = true
+            // Try VOICE_COMMUNICATION first; if uninitialized or fails, fallback to standard MIC
+            var record: AudioRecord? = null
+            try {
+                record = AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    SAMPLE_RATE_IN,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    bufferSize
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("AudioEngine", "Failed to init AudioRecord with VOICE_COMMUNICATION: ${e.message}")
             }
-        }
 
-        // Attach Noise Suppressor for cleaner speech recognition
-        if (NoiseSuppressor.isAvailable() && audioSessionId != 0) {
-            noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.apply {
-                enabled = true
+            if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
+                record?.release()
+                record = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE_IN,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    bufferSize
+                )
             }
-        }
 
-        audioRecord?.startRecording()
+            if (record.state != AudioRecord.STATE_INITIALIZED) {
+                android.util.Log.e("AudioEngine", "AudioRecord failed to initialize")
+                record.release()
+                return
+            }
 
-        recordJob = scope.launch(Dispatchers.IO) {
-            val audioBuffer = ByteArray(CHUNK_SIZE_IN)
-            while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                val bytesRead = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
-                if (bytesRead > 0) {
-                    // Calculate RMS amplitude for Orb Visualizer
-                    val rms = calculateRms(audioBuffer, bytesRead)
-                    _inputAmplitude.value = rms
+            audioRecord = record
 
-                    // Base64 encode for Gemini Live WebSocket PCM chunk
-                    val base64Pcm = Base64.encodeToString(audioBuffer, 0, bytesRead, Base64.NO_WRAP)
-                    onAudioChunk(base64Pcm)
+            val audioSessionId = record.audioSessionId
+            if (useEchoCancellation && AcousticEchoCanceler.isAvailable() && audioSessionId != 0) {
+                try {
+                    echoCanceler = AcousticEchoCanceler.create(audioSessionId)?.apply {
+                        enabled = true
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("AudioEngine", "AcousticEchoCanceler attach failed: ${e.message}")
                 }
             }
+
+            if (NoiseSuppressor.isAvailable() && audioSessionId != 0) {
+                try {
+                    noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.apply {
+                        enabled = true
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("AudioEngine", "NoiseSuppressor attach failed: ${e.message}")
+                }
+            }
+
+            record.startRecording()
+
+            recordJob = scope.launch(Dispatchers.IO) {
+                val audioBuffer = ByteArray(CHUNK_SIZE_IN)
+                while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    val bytesRead = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
+                    if (bytesRead > 0) {
+                        val rms = calculateRms(audioBuffer, bytesRead)
+                        _inputAmplitude.value = rms
+
+                        val base64Pcm = Base64.encodeToString(audioBuffer, 0, bytesRead, Base64.NO_WRAP)
+                        onAudioChunk(base64Pcm)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AudioEngine", "Error starting recording: ${e.message}", e)
         }
     }
 

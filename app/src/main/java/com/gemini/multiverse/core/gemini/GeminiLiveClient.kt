@@ -45,8 +45,12 @@ class GeminiLiveClient(
     companion object {
         private const val TAG = "GeminiLiveClient"
         private const val HOST = "generativelanguage.googleapis.com"
-        // v1beta is the active endpoint for BidiGenerateContent
         private const val WS_PATH = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        val LIVE_MODELS = listOf(
+            "models/gemini-2.5-flash-native-audio-preview-12-2025",
+            "models/gemini-3.8-live",
+            "models/gemini-3.5-live-translate-preview"
+        )
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -61,6 +65,8 @@ class GeminiLiveClient(
     private var activeScope: CoroutineScope? = null
     private var activePersonality: Personality? = null
     private var activeEchoCancellation: Boolean = true
+    private var activeLanguageMode: String = "bengali"
+    private var currentModelIndex = 0
 
     private val _sessionState = MutableStateFlow(LiveSessionState.IDLE)
     val sessionState: StateFlow<LiveSessionState> = _sessionState.asStateFlow()
@@ -88,7 +94,9 @@ class GeminiLiveClient(
         disconnect()
         activeScope = scope
         activePersonality = personality
+        activeLanguageMode = languageMode
         activeEchoCancellation = useEchoCancellation
+        currentModelIndex = 0
         _lastErrorMessage.value = ""
         _sessionState.value = LiveSessionState.CONNECTING
 
@@ -135,7 +143,7 @@ class GeminiLiveClient(
             com.gemini.multiverse.GeminiMultiverseApp.instance.container.jarvisMemoryRepository.compileMemoryPrompt()
         } catch (e: Exception) { "" }
         val systemInstructionText = PolyglotBrain.compileSystemInstruction(personality, languageMode, memoryContext)
-        val liveModel = "models/gemini-2.0-flash-exp"
+        val liveModel = LIVE_MODELS.getOrElse(currentModelIndex) { LIVE_MODELS.first() }
         Log.i(TAG, "Configuring Gemini Live session with model: $liveModel")
 
         val setupPayload = buildJsonObject {
@@ -275,6 +283,24 @@ class GeminiLiveClient(
                 val msg = errorObj["message"]?.jsonPrimitive?.content ?: "Server error"
                 val fullErr = if (code.isNotBlank()) "Error $code: $msg" else "Error: $msg"
                 Log.e(TAG, "Gemini Live error: $fullErr")
+
+                // Auto-retry with next live model if model is not supported or quota limited
+                if (currentModelIndex < LIVE_MODELS.size - 1 &&
+                    (msg.contains("not found", ignoreCase = true) ||
+                     msg.contains("not supported", ignoreCase = true) ||
+                     code == "429")
+                ) {
+                    currentModelIndex++
+                    val nextModel = LIVE_MODELS[currentModelIndex]
+                    Log.i(TAG, "Auto-retrying Gemini Live session with next candidate model: $nextModel")
+                    val p = activePersonality
+                    val ws = webSocket
+                    if (ws != null && p != null) {
+                        sendSetupMessage(ws, p, activeLanguageMode)
+                        return
+                    }
+                }
+
                 _lastErrorMessage.value = fullErr
                 _sessionState.value = LiveSessionState.ERROR
                 audioEngine.stopRecording()
