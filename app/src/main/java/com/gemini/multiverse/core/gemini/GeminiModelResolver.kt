@@ -64,9 +64,24 @@ object GeminiModelResolver {
                             val name = modelObj["name"]?.jsonPrimitive?.content ?: continue
                             val methods = modelObj["supportedGenerationMethods"]?.jsonArray
                                 ?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
-                            // Exclude TTS-only models — they only support AUDIO, not TEXT
-                            val isTtsModel = name.contains("-tts", ignoreCase = true)
-                            if (methods.contains("generateContent") && !isTtsModel) {
+                            val lowerName = name.lowercase()
+                            val isNonTextOrDeprecated = lowerName.contains("-tts") ||
+                                    lowerName.contains("-image") ||
+                                    lowerName.contains("preview-image") ||
+                                    lowerName.contains("embedding") ||
+                                    lowerName.contains("transcribe") ||
+                                    lowerName.contains("lyria") ||
+                                    lowerName.contains("banana") ||
+                                    lowerName.contains("er-2") ||
+                                    lowerName.contains("computer-use") ||
+                                    lowerName.contains("deep-research") ||
+                                    lowerName.contains("aqa") ||
+                                    lowerName.contains("2.5-flash") ||
+                                    lowerName.contains("2.5-pro") ||
+                                    lowerName.contains("2.0-flash") ||
+                                    lowerName.contains("1.5-flash")
+
+                            if (methods.contains("generateContent") && !isNonTextOrDeprecated) {
                                 discoveredCandidates.add(ModelCandidate(version, name))
                             }
                         }
@@ -80,12 +95,25 @@ object GeminiModelResolver {
         }
 
         if (discoveredCandidates.isNotEmpty()) {
-            // Sort to prioritize faster/modern flash models first
+            val scoreModel: (ModelCandidate) -> Int = { candidate ->
+                val n = candidate.name.lowercase()
+                when {
+                    n.contains("flash-lite-latest") -> 100
+                    n.contains("3.5-flash-lite") -> 95
+                    n.contains("3.6-flash") -> 90
+                    n.contains("3-flash-preview") -> 85
+                    n.contains("3.8-flash") -> 80
+                    n.contains("flash-latest") -> 75
+                    n.contains("gemma-4") -> 70
+                    n.contains("flash-lite") -> 65
+                    n.contains("flash") -> 60
+                    n.contains("pro") -> 50
+                    else -> 10
+                }
+            }
             val sorted = discoveredCandidates.sortedWith(
-                compareByDescending<ModelCandidate> { it.name.contains("2.0-flash") || it.name.contains("2.5-flash") }
-                    .thenByDescending { it.name.contains("flash") }
+                compareByDescending(scoreModel)
                     .thenByDescending { it.apiVersion == "v1beta" }
-                    .thenByDescending { it.name.contains("pro") }
             )
             Log.i(TAG, "Dynamically discovered ${sorted.size} models: ${sorted.map { "${it.apiVersion}/${it.name}" }}")
             return sorted
@@ -94,18 +122,13 @@ object GeminiModelResolver {
         // 2. Fallback static candidate list if ListModels is unavailable
         Log.i(TAG, "ListModels returned no candidates, using comprehensive static fallback list")
         return listOf(
-            ModelCandidate("v1beta", "models/gemini-2.0-flash"),
-            ModelCandidate("v1beta", "models/gemini-2.0-flash-001"),
-            ModelCandidate("v1beta", "models/gemini-2.0-flash-lite"),
-            ModelCandidate("v1beta", "models/gemini-2.0-flash-exp"),
-            ModelCandidate("v1beta", "models/gemini-1.5-flash-latest"),
-            ModelCandidate("v1beta", "models/gemini-1.5-pro-latest"),
-            ModelCandidate("v1beta", "models/gemini-1.5-flash-002"),
-            ModelCandidate("v1beta", "models/gemini-1.5-flash-001"),
-            ModelCandidate("v1", "models/gemini-1.5-flash"),
-            ModelCandidate("v1", "models/gemini-1.5-pro"),
-            ModelCandidate("v1", "models/gemini-2.0-flash"),
-            ModelCandidate("v1", "models/gemini-pro")
+            ModelCandidate("v1beta", "models/gemini-flash-lite-latest"),
+            ModelCandidate("v1beta", "models/gemini-3.5-flash-lite"),
+            ModelCandidate("v1beta", "models/gemini-3.6-flash"),
+            ModelCandidate("v1beta", "models/gemini-3-flash-preview"),
+            ModelCandidate("v1beta", "models/gemini-3.8-flash"),
+            ModelCandidate("v1beta", "models/gemini-flash-latest"),
+            ModelCandidate("v1beta", "models/gemma-4-26b-a4b-it")
         )
     }
 

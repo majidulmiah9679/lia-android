@@ -123,8 +123,9 @@ class ChatRepository(
                     }
                 } else {
                     lastError = "Model ${candidate.apiVersion}/${candidate.name} returned HTTP ${response.code}: $responseBody"
-                    // If not 404, break to avoid hammering with bad key or quota issues
-                    if (response.code != 404) {
+                    // Only break if the key itself is unauthorized (401/403).
+                    // For model-specific quota (429), busy (503), not found (404), or arg error (400), try next candidate model!
+                    if (response.code == 401 || response.code == 403) {
                         break
                     }
                 }
