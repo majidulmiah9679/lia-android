@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Default.Home)
     data object Voice : Screen("voice", "Voice", Icons.Default.Mic)
+    data object CreateImage : Screen("create_image", "Create An Image", Icons.Default.ColorLens)
     data object Chat : Screen("chat", "Chat", Icons.Default.Chat)
     data object Forge : Screen("forge", "3D Forge", Icons.Default.Language)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)

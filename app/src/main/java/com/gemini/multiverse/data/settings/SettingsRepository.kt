@@ -7,8 +7,8 @@ data class SettingsState(
     val hasApiKey: Boolean = false,
     val licenseKey: String = "",
     val isLicenseValid: Boolean = false,
-    val selectedLanguage: String = "hinglish", // "hinglish", "hindi", "english"
-    val selectedPersonalityId: String = "friendly",
+    val selectedLanguage: String = "bengali", // "bengali", "hinglish", "hindi", "english"
+    val selectedPersonalityId: String = "jarvis_female",
     val isEchoCancellationEnabled: Boolean = true,
     val isBackgroundServiceEnabled: Boolean = true,
     val orbStyle: String = "marigold_neon" // "marigold_neon", "cyber_cyan", "aurora"

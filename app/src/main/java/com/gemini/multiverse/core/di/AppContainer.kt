@@ -15,6 +15,7 @@ interface AppContainer {
     val dispatcherProvider: DispatcherProvider
     val encryptedStorage: EncryptedStorage
     val settingsRepository: SettingsRepository
+    val jarvisMemoryRepository: com.gemini.multiverse.data.memory.JarvisMemoryRepository
 }
 
 /**
@@ -33,5 +34,9 @@ class DefaultAppContainer(
 
     override val settingsRepository: SettingsRepository by lazy {
         DefaultSettingsRepository(encryptedStorage)
+    }
+
+    override val jarvisMemoryRepository: com.gemini.multiverse.data.memory.JarvisMemoryRepository by lazy {
+        com.gemini.multiverse.data.memory.JarvisMemoryRepository(context)
     }
 }

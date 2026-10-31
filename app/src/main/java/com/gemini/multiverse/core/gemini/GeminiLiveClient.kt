@@ -131,7 +131,10 @@ class GeminiLiveClient(
         personality: Personality,
         languageMode: String
     ) {
-        val systemInstructionText = PolyglotBrain.compileSystemInstruction(personality, languageMode)
+        val memoryContext = try {
+            com.gemini.multiverse.GeminiMultiverseApp.instance.container.jarvisMemoryRepository.compileMemoryPrompt()
+        } catch (e: Exception) { "" }
+        val systemInstructionText = PolyglotBrain.compileSystemInstruction(personality, languageMode, memoryContext)
         val liveModel = "models/gemini-2.0-flash-exp"
         Log.i(TAG, "Configuring Gemini Live session with model: $liveModel")
 
@@ -160,6 +163,13 @@ class GeminiLiveClient(
                 putJsonArray("tools") {
                     addJsonObject {
                         putJsonArray("functionDeclarations") {
+                            // Mobile Screen Control (A to Z)
+                            add(createFunctionSchema("control_screen", "Click, scroll, swipe, type, or navigate system back/home/recents/notifications on mobile screen", listOf("action"), listOf("targetText", "textToType")))
+                            add(createFunctionSchema("inspect_screen", "Inspect the current screen to read all visible buttons, texts, switches, and input fields", emptyList()))
+                            add(createFunctionSchema("change_setting", "Open or toggle an Android system setting (wifi, bluetooth, sound, display, apps, battery)", listOf("settingName"), listOf("toggleAction")))
+                            // Memory Vault
+                            add(createFunctionSchema("remember_fact", "Permanently save a user fact, preference, or detail to long-term memory", listOf("key", "value")))
+                            add(createFunctionSchema("recall_memories", "Recall all stored long-term memories about the user", emptyList()))
                             // Phone Action Tools
                             add(createFunctionSchema("open_app", "Open any installed application on the phone", listOf("appName")))
                             add(createFunctionSchema("make_call", "Place a phone call to a contact or phone number", listOf("contactNameOrNumber")))
@@ -184,7 +194,7 @@ class GeminiLiveClient(
                         put("role", "user")
                         putJsonArray("parts") {
                             addJsonObject {
-                                put("text", "Namaste Lia! Introduce yourself warmly out loud: ${personality.sampleGreeting}")
+                                put("text", "Introduce yourself warmly out loud: ${personality.sampleGreeting}")
                             }
                         }
                     }
@@ -195,22 +205,30 @@ class GeminiLiveClient(
         ws.send(greetingPayload.toString())
     }
 
-    private fun createFunctionSchema(name: String, description: String, requiredParams: List<String>): JsonObject {
+    private fun createFunctionSchema(
+        name: String,
+        description: String,
+        requiredParams: List<String>,
+        optionalParams: List<String> = emptyList()
+    ): JsonObject {
+        val allParams = (requiredParams + optionalParams).distinct()
         return buildJsonObject {
             put("name", name)
             put("description", description)
             putJsonObject("parameters") {
                 put("type", "OBJECT")
                 putJsonObject("properties") {
-                    requiredParams.forEach { param ->
+                    allParams.forEach { param ->
                         putJsonObject(param) {
                             put("type", "STRING")
                             put("description", "Value for $param")
                         }
                     }
                 }
-                putJsonArray("required") {
-                    requiredParams.forEach { add(it) }
+                if (requiredParams.isNotEmpty()) {
+                    putJsonArray("required") {
+                        requiredParams.forEach { add(it) }
+                    }
                 }
             }
         }

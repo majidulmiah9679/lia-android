@@ -16,8 +16,8 @@ class DefaultSettingsRepository(
     private fun loadInitialState(): SettingsState {
         val key = encryptedStorage.getString(EncryptedStorage.KEY_GEMINI_API_KEY, "")
         val license = encryptedStorage.getString(EncryptedStorage.KEY_LICENSE_KEY, "")
-        val lang = encryptedStorage.getString(EncryptedStorage.KEY_SELECTED_LANGUAGE, "hinglish")
-        val persona = encryptedStorage.getString(EncryptedStorage.KEY_SELECTED_PERSONALITY, "friendly")
+        val lang = encryptedStorage.getString(EncryptedStorage.KEY_SELECTED_LANGUAGE, "bengali")
+        val persona = encryptedStorage.getString(EncryptedStorage.KEY_SELECTED_PERSONALITY, "jarvis_female")
         val bgService = encryptedStorage.getBoolean(EncryptedStorage.KEY_BACKGROUND_SERVICE, true)
         val echoCancel = encryptedStorage.getBoolean(EncryptedStorage.KEY_ECHO_CANCELLATION, true)
 

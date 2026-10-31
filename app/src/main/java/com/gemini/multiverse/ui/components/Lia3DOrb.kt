@@ -17,24 +17,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gemini.multiverse.core.gemini.LiveSessionState
 import com.gemini.multiverse.core.sensor.TiltData
-import com.gemini.multiverse.ui.theme.CyanBioluminescent
-import com.gemini.multiverse.ui.theme.IndigoBorder
-import com.gemini.multiverse.ui.theme.MarigoldLight
-import com.gemini.multiverse.ui.theme.MarigoldPrimary
+import com.gemini.multiverse.ui.theme.JarvisElectricBlue
+import com.gemini.multiverse.ui.theme.JarvisMagenta
+import com.gemini.multiverse.ui.theme.JarvisPink
+import com.gemini.multiverse.ui.theme.JarvisPurple
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Lia's Interactive 3D Orb.
- * Uses real-time phone tilt coordinates for dynamic 3D specular light refraction
- * and audio RMS amplitude for surface wave deformation.
+ * Jarvis Futuristic 3D Plasma Orb (Matching Photo Screen 2):
+ * Features:
+ * - Glowing multi-layered cosmic plasma core
+ * - Swirling organic light ribbons & filaments (electric blue, magenta, violet, soft pink)
+ * - Device tilt 3D perspective refraction
+ * - Real-time speech audio amplitude deformation
  */
 @Composable
 fun Lia3DOrb(
@@ -43,31 +49,42 @@ fun Lia3DOrb(
     amplitude: Float = 0f,
     tiltData: TiltData = TiltData(),
     sessionState: LiveSessionState = LiveSessionState.IDLE,
-    auraColor: Color = MarigoldPrimary,
+    auraColor: Color = JarvisMagenta,
     onOrbClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "OrbMotion")
 
-    // Idle breathing rotation
-    val idlePhase by infiniteTransition.animateFloat(
+    // Continuous rotation for plasma filaments
+    val rotationAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
+            animation = tween(12000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "IdleRotation"
+        label = "OrbRotation"
     )
 
-    // Pulse scale animation
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
+    // Breathing pulse
+    val breathingPulse by infiniteTransition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
+            animation = tween(2800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "OrbPulse"
+        label = "OrbBreathing"
+    )
+
+    // Secondary wave oscillation
+    val wavePhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "OrbWave"
     )
 
     Box(
@@ -78,77 +95,106 @@ fun Lia3DOrb(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(this.size.width / 2f, this.size.height / 2f)
-            val baseRadius = (this.size.minDimension / 2f) * 0.70f
+            val baseRadius = (this.size.minDimension / 2f) * 0.68f
 
-            // Dynamic radius affected by speech audio amplitude
-            val audioExpansion = amplitude * baseRadius * 0.35f
-            val currentRadius = (baseRadius * pulseScale) + audioExpansion
+            // Dynamic audio expansion
+            val audioBoost = amplitude * baseRadius * 0.30f
+            val currentRadius = (baseRadius * breathingPulse) + audioBoost
 
-            // 1. Dynamic light source coordinate based on device tilt (Pitch & Roll)
-            val lightOffsetX = center.x - (tiltData.roll * currentRadius * 0.55f)
-            val lightOffsetY = center.y + (tiltData.pitch * currentRadius * 0.55f)
-            val lightSource = Offset(lightOffsetX, lightOffsetY)
+            // Tilt perspective offset
+            val tiltOffsetX = -tiltData.roll * currentRadius * 0.35f
+            val tiltOffsetY = tiltData.pitch * currentRadius * 0.35f
+            val dynamicCenter = Offset(center.x + tiltOffsetX, center.y + tiltOffsetY)
 
-            // 2. Outer Ambient Plasma Glow (Layer 1)
+            // 1. Volumetric Atmospheric Halo (Outermost)
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        auraColor.copy(alpha = 0.35f + (amplitude * 0.4f)),
-                        auraColor.copy(alpha = 0.08f),
+                        JarvisPurple.copy(alpha = 0.40f + (amplitude * 0.3f)),
+                        JarvisMagenta.copy(alpha = 0.20f),
+                        Color(0xFF381E72).copy(alpha = 0.08f),
                         Color.Transparent
                     ),
                     center = center,
-                    radius = currentRadius * 1.55f
+                    radius = currentRadius * 1.70f
                 ),
-                radius = currentRadius * 1.55f,
+                radius = currentRadius * 1.70f,
                 center = center
             )
 
-            // 3. Concentric Orbiting Resonance Rings (Layer 2)
-            val ringCount = 3
-            for (i in 0 until ringCount) {
-                val ringOffset = (i * 18.dp.toPx())
-                val ringAngle = Math.toRadians((idlePhase + (i * 45)).toDouble())
-                val ringTiltX = (cos(ringAngle) * 8.dp.toPx()).toFloat()
-                val ringTiltY = (sin(ringAngle) * 8.dp.toPx()).toFloat()
-
-                drawCircle(
-                    color = auraColor.copy(alpha = 0.25f - (i * 0.06f) + (amplitude * 0.2f)),
-                    radius = currentRadius + ringOffset + (amplitude * 20.dp.toPx()),
-                    center = Offset(center.x + ringTiltX, center.y + ringTiltY),
-                    style = Stroke(width = 1.5.dp.toPx())
-                )
-            }
-
-            // 4. Main 3D Sphere Body with Specular Highlight Gradient (Layer 3)
-            val sphereGradient = Brush.radialGradient(
+            // 2. Translucent Plasma Core Sphere
+            val coreGradient = Brush.radialGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.95f),                 // Specular hot spot
-                    MarigoldLight.copy(alpha = 0.90f),               // Inner luminescence
-                    auraColor.copy(alpha = 0.85f),                  // Primary aura
-                    IndigoBorder.copy(alpha = 0.95f),               // Shadow terminator
-                    Color(0xFF060612)                               // Deep shadowed back
+                    Color.White.copy(alpha = 0.85f),
+                    JarvisPink.copy(alpha = 0.90f),
+                    JarvisMagenta.copy(alpha = 0.75f),
+                    JarvisPurple.copy(alpha = 0.60f),
+                    Color(0xFF0F0721).copy(alpha = 0.92f)
                 ),
-                center = lightSource,
-                radius = currentRadius * 1.25f
+                center = Offset(dynamicCenter.x - (currentRadius * 0.25f), dynamicCenter.y - (currentRadius * 0.25f)),
+                radius = currentRadius * 1.15f
             )
 
             drawCircle(
-                brush = sphereGradient,
-                radius = currentRadius,
-                center = center
+                brush = coreGradient,
+                radius = currentRadius * 0.90f,
+                center = dynamicCenter
             )
 
-            // 5. State-specific Ripple Waves (Active Voice Feedback)
-            if (sessionState == LiveSessionState.SPEAKING || sessionState == LiveSessionState.LISTENING) {
-                val waveAlpha = (0.4f + amplitude * 0.6f).coerceIn(0f, 1f)
-                drawCircle(
-                    color = if (sessionState == LiveSessionState.SPEAKING) MarigoldLight else CyanBioluminescent,
-                    radius = currentRadius * 0.92f,
-                    center = center,
-                    style = Stroke(width = (2.dp.toPx() + (amplitude * 4.dp.toPx())))
-                )
+            // 3. Swirling Organic Light Ribbons & Energy Filaments (Photo look!)
+            val ribbonColors = listOf(
+                JarvisElectricBlue.copy(alpha = 0.85f),
+                JarvisMagenta.copy(alpha = 0.90f),
+                JarvisPink.copy(alpha = 0.95f),
+                Color(0xFFE879F9).copy(alpha = 0.80f),
+                JarvisPurple.copy(alpha = 0.75f)
+            )
+
+            val ribbonCount = 5
+            for (i in 0 until ribbonCount) {
+                val rot = rotationAngle * (if (i % 2 == 0) 1f else -0.8f) + (i * (360f / ribbonCount))
+                val waveOffset = sin(Math.toRadians((wavePhase + (i * 50)).toDouble())).toFloat() * 10f
+
+                rotate(degrees = rot, pivot = dynamicCenter) {
+                    val ovalWidth = currentRadius * (1.75f + (i * 0.08f)) + (amplitude * 25f)
+                    val ovalHeight = currentRadius * (0.85f + (i * 0.12f) + (waveOffset * 0.02f))
+                    val ovalTopLeft = Offset(dynamicCenter.x - (ovalWidth / 2f), dynamicCenter.y - (ovalHeight / 2f))
+
+                    drawOval(
+                        color = ribbonColors[i % ribbonColors.size],
+                        topLeft = ovalTopLeft,
+                        size = Size(ovalWidth, ovalHeight),
+                        style = Stroke(width = (2.2f + (i * 0.4f)).dp.toPx())
+                    )
+                }
             }
+
+            // 4. Subtle Interlaced Waveforms inside Core
+            val innerPath = Path()
+            val points = 36
+            val stepAngle = 360f / points
+            for (p in 0..points) {
+                val rad = Math.toRadians((p * stepAngle + rotationAngle).toDouble())
+                val rVariation = sin(rad * 3 + Math.toRadians(wavePhase.toDouble())).toFloat() * (6.dp.toPx() + amplitude * 14.dp.toPx())
+                val r = (currentRadius * 0.75f) + rVariation
+                val px = dynamicCenter.x + (cos(rad).toFloat() * r)
+                val py = dynamicCenter.y + (sin(rad).toFloat() * r)
+                if (p == 0) innerPath.moveTo(px, py) else innerPath.lineTo(px, py)
+            }
+            innerPath.close()
+
+            drawPath(
+                path = innerPath,
+                color = JarvisPink.copy(alpha = 0.45f + (amplitude * 0.4f)),
+                style = Stroke(width = 1.8.dp.toPx())
+            )
+
+            // 5. Specular Hotspot Glint
+            drawCircle(
+                color = Color.White.copy(alpha = 0.75f + (amplitude * 0.25f)),
+                radius = currentRadius * 0.12f,
+                center = Offset(dynamicCenter.x - (currentRadius * 0.35f), dynamicCenter.y - (currentRadius * 0.35f))
+            )
         }
     }
 }

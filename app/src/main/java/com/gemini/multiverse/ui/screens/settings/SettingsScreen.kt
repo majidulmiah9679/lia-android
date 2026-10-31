@@ -75,6 +75,10 @@ fun SettingsScreen(
     }
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val memoryRepo = remember { GeminiMultiverseApp.instance.container.jarvisMemoryRepository }
+    val memories by memoryRepo.memoriesFlow.collectAsState()
+    val isAccessibilityActive = com.gemini.multiverse.core.agent.LiaVisualAgentService.instance != null
     var inputApiKey by remember(uiState.apiKey) { mutableStateOf(uiState.apiKey) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
@@ -249,9 +253,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 val languages = listOf(
-                    "hinglish" to "Hinglish (हिंदी + English - Recommended)",
-                    "hindi" to "Shuddh Hindi (शुद्ध हिंदी)",
-                    "english" to "Global English"
+                    "bengali" to "বাংলা (Bengali - Recommended)",
+                    "english" to "English (Global English)",
+                    "hinglish" to "Hinglish (हिंदी + English)",
+                    "hindi" to "Shuddh Hindi (शुद्ध हिंदी)"
                 )
 
                 languages.forEach { (code, label) ->
@@ -369,6 +374,163 @@ fun SettingsScreen(
                             uncheckedTrackColor = IndigoElevated
                         )
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // 5. Mobile Screen Control (Accessibility Service)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, IndigoBorder, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = IndigoSurface)
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = if (isAccessibilityActive) EmeraldOnline else MarigoldPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Mobile Screen Control",
+                            style = Typography.titleLarge,
+                            color = TextSnow
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isAccessibilityActive) EmeraldOnline.copy(alpha = 0.2f) else RoseError.copy(alpha = 0.2f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isAccessibilityActive) "Active" else "Action Needed",
+                            color = if (isAccessibilityActive) EmeraldOnline else RoseError,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Allows Jarvis to click, scroll, navigate back/home, type text, and modify settings across any app on your phone.",
+                    style = Typography.bodyMedium,
+                    color = TextSubtle
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isAccessibilityActive) IndigoElevated else MarigoldPrimary,
+                        contentColor = if (isAccessibilityActive) TextSnow else IndigoVoid
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = if (isAccessibilityActive) "Accessibility Enabled ✓" else "Enable Accessibility in Settings",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // 6. Jarvis Long-Term Memory Vault
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, IndigoBorder, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = IndigoSurface)
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🧠",
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Permanent Memory Vault",
+                            style = Typography.titleLarge,
+                            color = TextSnow
+                        )
+                    }
+
+                    Text(
+                        text = "${memories.size} Memories",
+                        color = MarigoldPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Jarvis permanently remembers your personal preferences, conversations, and instructions across sessions.",
+                    style = Typography.bodyMedium,
+                    color = TextSubtle
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                memories.entries.take(5).forEach { (k, v) ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(IndigoElevated)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "• ${k.replace('_', ' ').replaceFirstChar { it.uppercase() }}: $v",
+                            fontSize = 12.sp,
+                            color = Color(0xFFCBD5E1),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                if (memories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { memoryRepo.clearAll() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = IndigoElevated,
+                            contentColor = RoseError
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Clear All Memories", fontSize = 12.sp)
+                    }
                 }
             }
         }

@@ -79,9 +79,9 @@ fun AppNavGraph(
                                 Text(text = screen.title)
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = VoidBlack,
-                                selectedTextColor = MarigoldPrimary,
-                                indicatorColor = MarigoldPrimary,
+                                selectedIconColor = com.gemini.multiverse.ui.theme.JarvisPink,
+                                selectedTextColor = com.gemini.multiverse.ui.theme.JarvisPurple,
+                                indicatorColor = com.gemini.multiverse.ui.theme.JarvisPurple.copy(alpha = 0.2f),
                                 unselectedIconColor = TextMuted,
                                 unselectedTextColor = TextMuted
                             )
@@ -104,7 +104,10 @@ fun AppNavGraph(
                 HomeScreen(navController)
             }
             composable(Screen.Voice.route) {
-                OrbScreen()
+                OrbScreen(navController)
+            }
+            composable(Screen.CreateImage.route) {
+                com.gemini.multiverse.ui.screens.image.CreateImageScreen(navController)
             }
             composable(Screen.Chat.route) {
                 ChatScreen()

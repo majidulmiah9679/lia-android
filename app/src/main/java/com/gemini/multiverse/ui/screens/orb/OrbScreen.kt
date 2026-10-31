@@ -1,5 +1,11 @@
 package com.gemini.multiverse.ui.screens.orb
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,14 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,11 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.gemini.multiverse.GeminiMultiverseApp
 import com.gemini.multiverse.core.actions.PhoneActionBridge
 import com.gemini.multiverse.core.audio.AudioEngine
@@ -51,23 +59,30 @@ import com.gemini.multiverse.core.sensor.TiltSensorManager
 import com.gemini.multiverse.core.service.VoiceSessionService
 import com.gemini.multiverse.domain.personality.PersonalitiesCatalog
 import com.gemini.multiverse.ui.components.Lia3DOrb
-import com.gemini.multiverse.ui.theme.CyanBioluminescent
-import com.gemini.multiverse.ui.theme.EmeraldOnline
-import com.gemini.multiverse.ui.theme.IndigoBorder
-import com.gemini.multiverse.ui.theme.IndigoElevated
-import com.gemini.multiverse.ui.theme.IndigoSurface
-import com.gemini.multiverse.ui.theme.IndigoVoid
-import com.gemini.multiverse.ui.theme.MarigoldGlow
-import com.gemini.multiverse.ui.theme.MarigoldPrimary
+import com.gemini.multiverse.ui.navigation.Screen
+import com.gemini.multiverse.ui.theme.JarvisBorder
+import com.gemini.multiverse.ui.theme.JarvisElevated
+import com.gemini.multiverse.ui.theme.JarvisHorizontalGradient
+import com.gemini.multiverse.ui.theme.JarvisMagenta
+import com.gemini.multiverse.ui.theme.JarvisPink
+import com.gemini.multiverse.ui.theme.JarvisPrimaryGradient
+import com.gemini.multiverse.ui.theme.JarvisPurple
+import com.gemini.multiverse.ui.theme.JarvisSurface
+import com.gemini.multiverse.ui.theme.JarvisVoid
 import com.gemini.multiverse.ui.theme.RoseError
-import com.gemini.multiverse.ui.theme.TextDim
 import com.gemini.multiverse.ui.theme.TextSnow
 import com.gemini.multiverse.ui.theme.TextSubtle
-import com.gemini.multiverse.ui.theme.Typography
-import kotlinx.coroutines.launch
 
+/**
+ * Screen 2: Real-Time Voice Assistant (Matching Photo UI)
+ * Features:
+ * - Real-Time vs Basic toggle capsule
+ * - 3D Swirling Plasma Orb with audio & tilt reactions
+ * - Live state feedback: "I'm Listening"
+ * - Glowing multi-ring Purple Mic button & Audio / Keyboard controls
+ */
 @Composable
-fun OrbScreen() {
+fun OrbScreen(navController: NavController? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val container = remember { GeminiMultiverseApp.instance.container }
@@ -77,7 +92,8 @@ fun OrbScreen() {
         PersonalitiesCatalog.getById(settingsState.selectedPersonalityId)
     }
 
-    // Audio Engine & Gemini Live Client
+    var selectedMode by remember { mutableStateOf("realtime") } // "realtime" or "basic"
+
     val audioEngine = remember { AudioEngine() }
     val phoneActionBridge = remember { PhoneActionBridge(context) }
     val liveClient = remember {
@@ -86,7 +102,6 @@ fun OrbScreen() {
         }
     }
 
-    // Tilt Sensor Manager
     val tiltSensorManager = remember { TiltSensorManager(context) }
     val tiltData by tiltSensorManager.tiltData.collectAsState()
 
@@ -96,197 +111,314 @@ fun OrbScreen() {
     val lastTranscript by liveClient.lastRecognizedText.collectAsState()
     val lastError by liveClient.lastErrorMessage.collectAsState()
 
-    // Determine combined visual amplitude
     val visualAmplitude = if (sessionState == LiveSessionState.SPEAKING) outputAmp else inputAmp
+    val isLive = sessionState != LiveSessionState.IDLE && sessionState != LiveSessionState.ERROR
 
     DisposableEffect(Unit) {
         tiltSensorManager.startListening()
         onDispose {
             tiltSensorManager.stopListening()
-            audioEngine.release()
             liveClient.disconnect()
+            VoiceSessionService.stop(context)
         }
     }
+
+    // Mic Halo Pulse Animation
+    val infiniteTransition = rememberInfiniteTransition(label = "MicHalo")
+    val haloPulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "HaloPulse"
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(IndigoVoid)
+            .background(JarvisVoid)
             .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // Top Status Header & Persona Pill
+        // 1. Top Bar: Back Button + Segmented Toggle ["Real-Time", "Basic"] + Tune Settings
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // State Badge
-            val statusColor = when (sessionState) {
-                LiveSessionState.CONNECTED -> EmeraldOnline
-                LiveSessionState.SPEAKING -> MarigoldPrimary
-                LiveSessionState.LISTENING -> CyanBioluminescent
-                LiveSessionState.CONNECTING -> MarigoldGlow
-                LiveSessionState.ERROR -> RoseError
-                LiveSessionState.IDLE -> TextDim
-            }
-
-            val statusText = when (sessionState) {
-                LiveSessionState.CONNECTED -> "Online"
-                LiveSessionState.SPEAKING -> "Lia bol rahi hai..."
-                LiveSessionState.LISTENING -> "Lia sun rahi hai..."
-                LiveSessionState.CONNECTING -> "Connecting..."
-                LiveSessionState.ERROR -> "Connection Failed"
-                LiveSessionState.IDLE -> "Standby"
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // Circular Back Button
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(IndigoSurface)
-                    .border(1.dp, IndigoBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(JarvisSurface)
+                    .border(1.dp, JarvisBorder, CircleShape)
+                    .clickable { navController?.popBackStack() },
+                contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = TextSnow,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Center Segmented Toggle: ["Real-Time", "Basic"]
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(JarvisSurface)
+                    .border(1.dp, JarvisBorder, RoundedCornerShape(22.dp))
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Real-Time Tab
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = statusText,
-                    color = statusColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            if (selectedMode == "realtime") JarvisHorizontalGradient else Color.Transparent
+                        )
+                        .clickable { selectedMode = "realtime" }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Real-Time",
+                        fontSize = 13.sp,
+                        fontWeight = if (selectedMode == "realtime") FontWeight.Bold else FontWeight.Medium,
+                        color = if (selectedMode == "realtime") Color.White else TextSubtle
+                    )
+                }
+
+                // Basic Tab
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            if (selectedMode == "basic") JarvisHorizontalGradient else Color.Transparent
+                        )
+                        .clickable { selectedMode = "basic" }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Basic",
+                        fontSize = 13.sp,
+                        fontWeight = if (selectedMode == "basic") FontWeight.Bold else FontWeight.Medium,
+                        color = if (selectedMode == "basic") Color.White else TextSubtle
+                    )
+                }
             }
 
-            // Active Persona Indicator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // Right Settings Slider Button
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(IndigoSurface)
-                    .border(1.dp, activePersona.auraColor.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(JarvisSurface)
+                    .border(1.dp, JarvisBorder, CircleShape)
+                    .clickable { navController?.navigate(Screen.Settings.route) },
+                contentAlignment = Alignment.Center
             ) {
-                Text(text = activePersona.avatarEmoji, fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = activePersona.name,
-                    color = TextSnow,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = "Settings",
+                    tint = TextSnow,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.weight(0.8f))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // The 3D Interactive Audio & Tilt Reactive Orb
-        Lia3DOrb(
-            size = 280.dp,
-            amplitude = visualAmplitude,
-            tiltData = tiltData,
-            sessionState = sessionState,
-            auraColor = activePersona.auraColor,
-            onOrbClick = {
-                if (sessionState == LiveSessionState.IDLE || sessionState == LiveSessionState.ERROR) {
-                    val key = settingsState.apiKey
-                    if (key.isNotBlank()) {
-                        liveClient.connect(
-                            scope = scope,
-                            apiKey = key,
-                            personality = activePersona,
-                            languageMode = settingsState.selectedLanguage,
-                            useEchoCancellation = settingsState.isEchoCancellationEnabled
-                        )
-                        if (settingsState.isBackgroundServiceEnabled) {
-                            VoiceSessionService.start(context)
+        // 2. Center: 3D Swirling Plasma Orb
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Lia3DOrb(
+                    size = 260.dp,
+                    amplitude = visualAmplitude,
+                    tiltData = tiltData,
+                    sessionState = sessionState,
+                    auraColor = JarvisMagenta,
+                    onOrbClick = {
+                        if (!isLive) {
+                            val key = settingsState.apiKey
+                            if (key.isNotBlank()) {
+                                liveClient.connect(
+                                    scope = scope,
+                                    apiKey = key,
+                                    personality = activePersona,
+                                    languageMode = settingsState.selectedLanguage,
+                                    useEchoCancellation = settingsState.isEchoCancellationEnabled
+                                )
+                                if (settingsState.isBackgroundServiceEnabled) {
+                                    VoiceSessionService.start(context)
+                                }
+                            }
+                        } else {
+                            liveClient.disconnect()
+                            VoiceSessionService.stop(context)
                         }
                     }
-                } else {
-                    liveClient.disconnect()
-                    VoiceSessionService.stop(context)
-                }
+                )
+
+                Spacer(modifier = Modifier.height(22.dp))
+
+                // Tag below Orb: "AI- Powered Voice Assistant"
+                Text(
+                    text = "AI- Powered Voice Assistant",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = JarvisPink,
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Prompt description text
+                Text(
+                    text = if (lastTranscript.isNotBlank()) {
+                        "\"$lastTranscript\""
+                    } else {
+                        "Backingound With Flowing Organic Shapes, Blending Deep Purple, Violet, Electric Blu, And Soft Pink Haze..."
+                    },
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFFCBD5E1),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Live Status Text: "I'm Listening"
+                Text(
+                    text = when {
+                        sessionState == LiveSessionState.ERROR && lastError.isNotBlank() -> "Error: $lastError"
+                        sessionState == LiveSessionState.SPEAKING -> "Speaking..."
+                        sessionState == LiveSessionState.LISTENING || isLive -> "I'm Listening"
+                        sessionState == LiveSessionState.CONNECTING -> "Connecting..."
+                        else -> "Tap Mic to Talk"
+                    },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (sessionState == LiveSessionState.ERROR) RoseError else Color.White.copy(alpha = 0.9f)
+                )
             }
-        )
+        }
 
-        Spacer(modifier = Modifier.height(28.dp))
-
-        // Voice Subtitle / Speech Display
-        Text(
-            text = when {
-                sessionState == LiveSessionState.ERROR && lastError.isNotBlank() -> "Error: $lastError"
-                lastTranscript.isNotBlank() -> "\"$lastTranscript\""
-                sessionState == LiveSessionState.CONNECTING -> "Connecting to Gemini Live..."
-                sessionState == LiveSessionState.CONNECTED -> "Connected! Speak to Lia or listen..."
-                else -> "Tap Orb to speak in Hindi, Hinglish or English"
-            },
-            style = Typography.bodyLarge,
-            color = if (sessionState == LiveSessionState.ERROR) RoseError else if (lastTranscript.isNotBlank()) TextSnow else TextSubtle,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Action Buttons & Controls
+        // 3. Bottom Controls: Waveform Button + Massive Glowing Mic Button + Keyboard Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            horizontalArrangement = Arrangement.Center,
+                .padding(bottom = 28.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val isLive = sessionState != LiveSessionState.IDLE && sessionState != LiveSessionState.ERROR
-
-            Button(
-                onClick = {
-                    if (!isLive) {
-                        val key = settingsState.apiKey
-                        if (key.isNotBlank()) {
-                            liveClient.connect(
-                                scope = scope,
-                                apiKey = key,
-                                personality = activePersona,
-                                languageMode = settingsState.selectedLanguage,
-                                useEchoCancellation = settingsState.isEchoCancellationEnabled
-                            )
-                            if (settingsState.isBackgroundServiceEnabled) {
-                                VoiceSessionService.start(context)
-                            }
-                        }
-                    } else {
-                        liveClient.disconnect()
-                        VoiceSessionService.stop(context)
-                    }
-                },
+            // Left: Circular Waveform Button
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.75f)
-                    .height(54.dp),
-                shape = RoundedCornerShape(27.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isLive) RoseError else MarigoldPrimary,
-                    contentColor = if (isLive) TextSnow else IndigoVoid
-                )
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(JarvisSurface)
+                    .border(1.dp, JarvisBorder, CircleShape)
+                    .clickable { /* Audio equalizer / waveform inspect */ },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isLive) Icons.Default.Stop else Icons.Default.Mic,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
+                    imageVector = Icons.Default.GraphicEq,
+                    contentDescription = "Waveform",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = if (isLive) "End Voice Session" else "Start Talking to Lia",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+            }
+
+            // Center: Massive Glowing Purple/Pink Microphone Button
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(90.dp)
+            ) {
+                // Outer glowing halo ring
+                if (isLive) {
+                    Box(
+                        modifier = Modifier
+                            .size(86.dp * haloPulse)
+                            .clip(CircleShape)
+                            .background(JarvisPurple.copy(alpha = 0.25f))
+                    )
+                }
+
+                // Inner gradient mic button
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isLive) Brush.linearGradient(listOf(RoseError, JarvisMagenta))
+                            else JarvisPrimaryGradient
+                        )
+                        .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                        .clickable {
+                            if (!isLive) {
+                                val key = settingsState.apiKey
+                                if (key.isNotBlank()) {
+                                    liveClient.connect(
+                                        scope = scope,
+                                        apiKey = key,
+                                        personality = activePersona,
+                                        languageMode = settingsState.selectedLanguage,
+                                        useEchoCancellation = settingsState.isEchoCancellationEnabled
+                                    )
+                                    if (settingsState.isBackgroundServiceEnabled) {
+                                        VoiceSessionService.start(context)
+                                    }
+                                } else {
+                                    navController?.navigate(Screen.Settings.route)
+                                }
+                            } else {
+                                liveClient.disconnect()
+                                VoiceSessionService.stop(context)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isLive) Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = "Mic Control",
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+            }
+
+            // Right: Circular Keyboard Button
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(JarvisSurface)
+                    .border(1.dp, JarvisBorder, CircleShape)
+                    .clickable { navController?.navigate(Screen.Chat.route) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Keyboard,
+                    contentDescription = "Keyboard",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
