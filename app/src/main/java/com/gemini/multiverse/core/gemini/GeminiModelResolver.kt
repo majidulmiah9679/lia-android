@@ -64,7 +64,9 @@ object GeminiModelResolver {
                             val name = modelObj["name"]?.jsonPrimitive?.content ?: continue
                             val methods = modelObj["supportedGenerationMethods"]?.jsonArray
                                 ?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
-                            if (methods.contains("generateContent")) {
+                            // Exclude TTS-only models — they only support AUDIO, not TEXT
+                            val isTtsModel = name.contains("-tts", ignoreCase = true)
+                            if (methods.contains("generateContent") && !isTtsModel) {
                                 discoveredCandidates.add(ModelCandidate(version, name))
                             }
                         }

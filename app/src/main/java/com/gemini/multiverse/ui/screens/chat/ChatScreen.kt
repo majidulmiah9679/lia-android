@@ -162,7 +162,7 @@ fun ChatScreen() {
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                placeholder = { Text("Type in Hindi, Hinglish or English...", color = TextDim, fontSize = 14.sp) },
+                placeholder = { Text("বাংলা, ইংরেজি বা Hinglish-এ লিখুন...", color = TextDim, fontSize = 14.sp) },
                 modifier = Modifier.weight(1f),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextSnow,
@@ -241,7 +241,7 @@ fun ChatBubble(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Lia soch rahi hai...", color = TextSubtle, fontSize = 13.sp)
+                    Text(text = "Jarvis ভাবছে...", color = TextSubtle, fontSize = 13.sp)
                 }
             } else {
                 Text(

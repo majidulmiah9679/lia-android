@@ -37,7 +37,7 @@ class ChatRepository(
         listOf(
             ChatMessage(
                 sender = MessageSender.LIA,
-                text = "Namaste! Main Lia hoon. Aap mujhse type karke ya voice orb se baat kar sakte hain. Aaj kya plan hai?"
+                text = "নমস্কার! আমি Jarvis। আপনি আমাকে টাইপ করে বা ভয়েস অর্ব দিয়ে কথা বলতে পারেন। আজকে কীভাবে সাহায্য করতে পারি?"
             )
         )
     )
@@ -65,7 +65,7 @@ class ChatRepository(
         val settings = settingsRepository.settingsState.value
         val apiKey = settings.apiKey.trim()
         if (apiKey.isBlank()) {
-            updateLiaMessage(liaPlaceholder.id, "Kripya Settings mein jakar Gemini API Key enter karein.")
+            updateLiaMessage(liaPlaceholder.id, "অনুগ্রহ করে Settings-এ গিয়ে Gemini API Key দিন।")
             return@withContext
         }
 
