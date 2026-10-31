@@ -182,7 +182,7 @@ fun OrbScreen(navController: NavController? = null) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(18.dp))
                         .background(
-                            if (selectedMode == "realtime") JarvisHorizontalGradient else Color.Transparent
+                            if (selectedMode == "realtime") JarvisHorizontalGradient else androidx.compose.ui.graphics.SolidColor(Color.Transparent)
                         )
                         .clickable { selectedMode = "realtime" }
                         .padding(horizontal = 16.dp, vertical = 7.dp),
@@ -201,7 +201,7 @@ fun OrbScreen(navController: NavController? = null) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(18.dp))
                         .background(
-                            if (selectedMode == "basic") JarvisHorizontalGradient else Color.Transparent
+                            if (selectedMode == "basic") JarvisHorizontalGradient else androidx.compose.ui.graphics.SolidColor(Color.Transparent)
                         )
                         .clickable { selectedMode = "basic" }
                         .padding(horizontal = 16.dp, vertical = 7.dp),
