@@ -118,6 +118,7 @@ fun OrbScreen(navController: NavController? = null) {
     val lastTranscript by liveClient.lastRecognizedText.collectAsState()
     val lastError by liveClient.lastErrorMessage.collectAsState()
 
+    val visualAmplitude = if (sessionState == LiveSessionState.SPEAKING) outputAmp else inputAmp
     val isLive = sessionState != LiveSessionState.IDLE && sessionState != LiveSessionState.ERROR
     val isAccessibilityActive = com.gemini.multiverse.core.agent.LiaVisualAgentService.instance != null
 
